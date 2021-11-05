@@ -22,6 +22,9 @@ type HandlerConfig struct {
 	teamName         string
 	teamSuffix       string
 	detailsTemplate  string
+	pdcefTimestamp   string
+	pdcefClass       string
+	pdcefGroup       string
 }
 
 type eventStatusMap map[string][]uint32
@@ -96,6 +99,27 @@ var (
 			Shorthand: "d",
 			Usage:     "The template for the alert details, can be set with PAGERDUTY_DETAILS_TEMPLATE (default full event JSON)",
 			Value:     &config.detailsTemplate,
+			Default:   "",
+		},
+		{
+			Path:      "timestamp",
+			Argument:  "timestamp",
+			Usage:     "The PD-CEF Timestamp field",
+			Value:     &config.pdcefTimestamp,
+			Default:   "",
+		},
+		{
+			Path:      "class",
+			Argument:  "class",
+			Usage:     "The PD-CEF Class field",
+			Value:     &config.pdcefClass,
+			Default:   "",
+		},
+		{
+			Path:      "group",
+			Argument:  "group",
+			Usage:     "The PD-CEF Group field",
+			Value:     &config.pdcefGroup,
 			Default:   "",
 		},
 	}
@@ -181,12 +205,17 @@ func manageIncident(event *corev2.Event) error {
 		event.Check.Output = "WARNING Truncated:i\n" + event.Check.Output[:256000] + "..."
 	}
 
+	// omitempty is used upstream so we can include Timestamp, Class and Group even if not set
+	// https://github.com/PagerDuty/go-pagerduty/blob/d0d5cb1cff7f0344fbbc9f66fc9dfc603fa82a19/event_v2.go#L25-L34
 	pdPayload := pagerduty.V2Payload{
 		Source:    event.Entity.Name,
 		Component: event.Check.Name,
 		Severity:  severity,
 		Summary:   summary,
 		Details:   details,
+		Timestamp: config.pdcefTimestamp,
+		Class:     config.pdcefClass,
+		Group:     config.pdcefGroup,
 	}
 
 	action := "trigger"
