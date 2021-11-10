@@ -25,6 +25,7 @@ type HandlerConfig struct {
 	timestampTemplate string
 	classTemplate     string
 	groupTemplate     string
+	sendDetailsAsJson bool
 }
 
 type eventStatusMap map[string][]uint32
@@ -100,6 +101,14 @@ var (
 			Usage:     "The template for the alert details, can be set with PAGERDUTY_DETAILS_TEMPLATE (default full event JSON)",
 			Value:     &config.detailsTemplate,
 			Default:   "",
+		},
+		{
+			Path:      "send-details-as-json",
+			Env:       "PAGERDUTY_DETAILS_TEMPLATE",
+			Argument:  "send-details-as-json",
+			Usage:     "Indicates whether to process and send the details template as JSON as opposed to the default of text",
+			Value:     &config.sendDetailsAsJson,
+			Default:   false,
 		},
 		{
 			Path:      "timestamp-template",
@@ -357,8 +366,9 @@ func getSummary(event *corev2.Event) (string, error) {
 
 func getDetails(event *corev2.Event) (interface{}, error) {
 	var (
-		details interface{}
-		err     error
+		details     interface{}
+		err         error
+		detailsJson map[string]interface{}
 	)
 
 	if len(config.detailsTemplate) > 0 {
@@ -366,11 +376,18 @@ func getDetails(event *corev2.Event) (interface{}, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to evaluate template %s: %v", config.detailsTemplate, err)
 		}
+		if config.sendDetailsAsJson {
+			json.Unmarshal([]byte(details.(string)), &detailsJson)
+			return detailsJson, nil
+		} else {
+			return details, nil
+		}
 	} else {
 		details = event
+		return details, nil
 	}
-	return details, nil
 }
+
 func getTimestamp(event *corev2.Event) (string, error) {
 	var (
 		timestamp string
