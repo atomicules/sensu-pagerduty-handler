@@ -15,16 +15,16 @@ import (
 
 type HandlerConfig struct {
 	sensu.PluginConfig
-	authToken        string
-	dedupKeyTemplate string
-	statusMapJson    string
-	summaryTemplate  string
-	teamName         string
-	teamSuffix       string
-	detailsTemplate  string
-	pdcefTimestamp   string
-	pdcefClass       string
-	pdcefGroup       string
+	authToken         string
+	dedupKeyTemplate  string
+	statusMapJson     string
+	summaryTemplate   string
+	teamName          string
+	teamSuffix        string
+	detailsTemplate   string
+	timestampTemplate string
+	classTemplate     string
+	groupTemplate     string
 }
 
 type eventStatusMap map[string][]uint32
@@ -102,24 +102,27 @@ var (
 			Default:   "",
 		},
 		{
-			Path:      "timestamp",
-			Argument:  "timestamp",
-			Usage:     "The PD-CEF Timestamp field",
-			Value:     &config.pdcefTimestamp,
+			Path:      "timestamp-template",
+			Env:       "PAGERDUTY_TIMESTAMP_TEMPLATE",
+			Argument:  "timestamp-template",
+			Usage:     "The template for the PD-CEF Timestamp field, can be set with PAGERDUTY_TIMESTAMP_TEMPLATE (default \"\")",
+			Value:     &config.timestampTemplate,
 			Default:   "",
 		},
 		{
-			Path:      "class",
-			Argument:  "class",
-			Usage:     "The PD-CEF Class field",
-			Value:     &config.pdcefClass,
+			Path:      "class-template",
+			Env:       "PAGERDUTY_CLASS_TEMPLATE",
+			Argument:  "class-template",
+			Usage:     "The template for the PD-CEF Class field, can be set with PAGERDUTY_CLASS_TEMPLATE (default \"\")",
+			Value:     &config.classTemplate,
 			Default:   "",
 		},
 		{
-			Path:      "group",
-			Argument:  "group",
-			Usage:     "The PD-CEF Group field",
-			Value:     &config.pdcefGroup,
+			Path:      "group-template",
+			Env:       "PAGERDUTY_GROUP_TEMPLATE",
+			Argument:  "group-template",
+			Usage:     "The template for the PD-CEF Group field, can be set with PAGERDUTY_GROUP_TEMPLATE (default \"\")",
+			Value:     &config.groupTemplate,
 			Default:   "",
 		},
 	}
@@ -199,6 +202,21 @@ func manageIncident(event *corev2.Event) error {
 		return err
 	}
 
+	timestamp, err := getTimestamp(event)
+	if err != nil {
+		return err
+	}
+
+	class, err := getClass(event)
+	if err != nil {
+		return err
+	}
+
+	group, err := getGroup(event)
+	if err != nil {
+		return err
+	}
+
 	// "The maximum permitted length of PG event is 512 KB. Let's limit check output to 256KB to prevent triggering a failed send"
 	if len(event.Check.Output) > 256000 {
 		log.Printf("Warning Incident Payload Truncated!")
@@ -213,9 +231,9 @@ func manageIncident(event *corev2.Event) error {
 		Severity:  severity,
 		Summary:   summary,
 		Details:   details,
-		Timestamp: config.pdcefTimestamp,
-		Class:     config.pdcefClass,
-		Group:     config.pdcefGroup,
+		Timestamp: timestamp,
+		Class:     class,
+		Group:     group,
 	}
 
 	action := "trigger"
@@ -352,4 +370,59 @@ func getDetails(event *corev2.Event) (interface{}, error) {
 		details = event
 	}
 	return details, nil
+}
+func getTimestamp(event *corev2.Event) (string, error) {
+	var (
+		timestamp string
+		err       error
+	)
+
+	if len(config.timestampTemplate) > 0 {
+		timestamp, err = templates.EvalTemplate("timestamp", config.timestampTemplate, event)
+		if err != nil {
+			return "", fmt.Errorf("failed to evaluate template %s: %v", config.timestampTemplate, err)
+		}
+	} else {
+		timestamp = ""
+	}
+
+	log.Printf("Incident Timestamp: %s", timestamp)
+	return timestamp, nil
+}
+
+func getClass(event *corev2.Event) (string, error) {
+	var (
+		class string
+		err   error
+	)
+
+	if len(config.classTemplate) > 0 {
+		class, err = templates.EvalTemplate("class", config.classTemplate, event)
+		if err != nil {
+			return "", fmt.Errorf("failed to evaluate template %s: %v", config.classTemplate, err)
+		}
+	} else {
+		class = ""
+	}
+	log.Printf("Incident Class: %s", class)
+	return class, nil
+}
+
+func getGroup(event *corev2.Event) (string, error) {
+	var (
+		group string
+		err   error
+	)
+
+	if len(config.groupTemplate) > 0 {
+		group, err = templates.EvalTemplate("group", config.groupTemplate, event)
+		if err != nil {
+			return "", fmt.Errorf("failed to evaluate template %s: %v", config.groupTemplate, err)
+		}
+	} else {
+		group = ""
+	}
+
+	log.Printf("Incident Group: %s", group)
+	return group, nil
 }
