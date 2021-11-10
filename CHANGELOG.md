@@ -7,6 +7,11 @@ Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## Added
+
+- Adds the additional PD-CEF fields: Timestamp, Class, Group. These use templates per the other fields
+- Adds a `--send-details-as-json` flag which can be used with `--details-template` to process the template as JSON so that Pagerduty receives structured data and not a string
+
 ## 2.2.1 - 2021-03-15
 ### Changed
 - Add additional logging to help troubleshoot pager team annotations
